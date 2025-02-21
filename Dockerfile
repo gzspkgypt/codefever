@@ -88,12 +88,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
     NODE_VERSION=16.20.0
 
-# 替换为国内镜像源（阿里云）
+# 替换为国内镜像源（阿里云），并安装必要软件包
 RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list
-
-# 更新系统并安装必要依赖
-RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
+    apt-get update -y && apt-get install -y --no-install-recommends \
     apt-transport-https \
     ca-certificates \
     curl \
@@ -103,6 +101,7 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     libyaml-dev \
     libzip-dev \
     git \
+    cron \
     golang-go \
     zip \
     sendmail \
@@ -111,7 +110,7 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     vim \
   && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 安装 Node.js 和 npm (通过备用的镜像源安装)
+# 安装 Node.js 和 npm（通过备用镜像源安装）
 RUN curl -fsSL https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.xz -o node.tar.xz && \
     mkdir -p /usr/local/lib/nodejs && \
     tar -xJf node.tar.xz -C /usr/local/lib/nodejs --strip-components=1 && \
@@ -161,10 +160,13 @@ RUN useradd -rm git && \
     cd ../application/libraries/composerlib/ && \
     php ./composer.phar install --no-dev
 
-# 配置 Cron 任务
-RUN echo "* * * * *  sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \
+# 安装和配置 Cron 任务
+RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \
     chmod 0644 /etc/cron.d/codefever-cron && \
     crontab /etc/cron.d/codefever-cron
+
+# 启动 Cron 服务
+RUN service cron start
 
 # 配置 Entrypoint 脚本
 COPY misc/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
@@ -173,5 +175,5 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # 暴露端口
 EXPOSE 80 22
 
-# 启动容器的默认命令
+# 设置启动脚本
 CMD ["php-fpm"]
