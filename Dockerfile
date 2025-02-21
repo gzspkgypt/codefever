@@ -85,7 +85,8 @@ LABEL maintainer="rexshi <rexshi@pgyer.com>"
 
 # 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive \
-    TZ=Asia/Shanghai
+    TZ=Asia/Shanghai \
+    NODE_VERSION=16.20.0
 
 # 替换为国内镜像源（阿里云）以提升下载速度
 RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
@@ -97,7 +98,6 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     ca-certificates \
     gnupg \
     dirmngr \
-    software-properties-common \
     wget \
     curl \
     lsb-release \
@@ -113,12 +113,17 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     vim \
   && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 安装 Node.js 和 npm（通过 Debian 官方存储库安装）
-RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_16.x $(lsb_release -cs) main" > /etc/apt/sources.list.d/nodesource.list && \
-    apt-get update -y && apt-get install -y nodejs && \
-    npm install -g npm@latest && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# 安装 Node.js 和 npm（官方 tarball 安装方式）
+RUN ARCH=$(dpkg --print-architecture) && \
+    NODE_TARBALL="node-v$NODE_VERSION-linux-$ARCH.tar.xz" && \
+    NODE_URL="https://nodejs.org/dist/v$NODE_VERSION/$NODE_TARBALL" && \
+    curl -fsSL "$NODE_URL" -o "$NODE_TARBALL" && \
+    mkdir -p /usr/local/lib/nodejs && \
+    tar -xJf "$NODE_TARBALL" -C /usr/local/lib/nodejs --strip-components=1 && \
+    rm "$NODE_TARBALL" && \
+    ln -s /usr/local/lib/nodejs/bin/node /usr/local/bin/node && \
+    ln -s /usr/local/lib/nodejs/bin/npm /usr/local/bin/npm && \
+    ln -s /usr/local/lib/nodejs/bin/npx /usr/local/bin/npx
 
 # 验证安装是否成功
 RUN node -v && npm -v
