@@ -83,15 +83,17 @@ FROM webdevops/php-nginx:7.4
 # 设置环境变量，避免安装过程中交互
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 替换 APT 源为国内镜像并安装必要的软件包
+# 更新并安装必要的软件包
 RUN set -eux; \
-    # 替换为国内镜像源
+    # 检查是否存在 apt 源文件，并替换为国内镜像
     if [ -f /etc/apt/sources.list ]; then \
-        sed -i 's|http://deb.debian.org/debian|https://mirrors.tuna.tsinghua.edu.cn/debian|g' /etc/apt/sources.list && \
-        sed -i 's|http://security.debian.org/debian-security|https://mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list; \
+        sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list && \
+        sed -i 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' /etc/apt/sources.list; \
     fi; \
-    # 更新包列表并安装必要的软件包
-    apt-get update -y && \
+    # 指定 APT 使用旧版源（防止镜像中的证书过期）
+    echo "Acquire::Check-Valid-Until false;" >> /etc/apt/apt.conf.d/99-ignore-valid-until; \
+    apt-get update -y; \
+    # 尝试安装必要的软件包
     apt-get install -y --no-install-recommends \
         libyaml-dev \
         git \
@@ -104,9 +106,9 @@ RUN set -eux; \
         wget \
         gcc \
         make \
-        autoconf && \
-    # 清理缓存，减小镜像大小
-    apt-get clean && \
+        autoconf; \
+    # 清理缓存
+    apt-get clean; \
     rm -rf /var/lib/apt/lists/*
 
 # 安装 YAML 扩展
