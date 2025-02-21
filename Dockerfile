@@ -77,18 +77,20 @@
 
 
 
-# 使用webdevops/php-nginx:7.4作为基础镜像
+# 使用 webdevops/php-nginx:7.4 基础镜像
 FROM webdevops/php-nginx:7.4
 
-# 设置环境变量以避免交互提示
+# 设置环境变量，避免安装过程中交互
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 替换APT源为国内清华镜像，并安装必要的软件包
+# 替换 APT 源为国内镜像并安装必要的软件包
 RUN set -eux; \
+    # 替换为国内镜像源
     if [ -f /etc/apt/sources.list ]; then \
         sed -i 's|http://deb.debian.org/debian|https://mirrors.tuna.tsinghua.edu.cn/debian|g' /etc/apt/sources.list && \
         sed -i 's|http://security.debian.org/debian-security|https://mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list; \
     fi; \
+    # 更新包列表并安装必要的软件包
     apt-get update -y && \
     apt-get install -y --no-install-recommends \
         libyaml-dev \
@@ -103,13 +105,14 @@ RUN set -eux; \
         gcc \
         make \
         autoconf && \
+    # 清理缓存，减小镜像大小
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 安装 PHP 的 YAML 扩展
+# 安装 YAML 扩展
 RUN pecl install yaml && docker-php-ext-enable yaml
 
-# 验证 PHP 是否正确加载 yaml 扩展
+# 验证 YAML 扩展是否正常加载
 RUN php -m | grep yaml
 
 # 安装 Node.js 和 npm
@@ -119,11 +122,10 @@ RUN wget -qO- https://deb.nodesource.com/setup_16.x | bash - && \
     corepack enable && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 下载 Codefever 源码到指定路径
+# 下载 Codefever 源码
 RUN mkdir -p /data/www && \
     cd /data/www && \
-    git clone https://github.com/PGYER/codefever.git codefever-community && \
-    cd codefever-community
+    git clone https://github.com/PGYER/codefever.git codefever-community
 
 # 编译 Codefever 的 Go 程序
 RUN cd /data/www/codefever-community/http-gateway && \
@@ -152,7 +154,7 @@ RUN useradd -rm git && \
     cd ../application/libraries/composerlib/ && \
     php ./composer.phar install
 
-# 配置 Cron 工作任务
+# 配置定时任务（Cron）
 RUN echo '* * * * *  sh /data/www/codefever-community/application/backend/codefever_schedule.sh' > /etc/cron.d/codefever-cron && \
     chmod 0644 /etc/cron.d/codefever-cron && \
     crontab /etc/cron.d/codefever-cron
@@ -166,5 +168,5 @@ COPY ./misc/docker/vhost.conf-template /opt/docker/etc/nginx/vhost.conf
 # 配置启动脚本
 COPY ./misc/docker/docker-entrypoint.sh /opt/docker/provision/entrypoint.d/20-codefever.sh
 
-# 暴露端口
+# 暴露必要的端口
 EXPOSE 80 22
