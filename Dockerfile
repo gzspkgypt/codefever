@@ -197,13 +197,10 @@ LABEL maintainer="rexshi <rexshi@pgyer.com>"
   
 # 设置环境变量  
 ENV DEBIAN_FRONTEND=noninteractive \  
-    TZ=Asia/Shanghai \  
-    NODE_VERSION=16.20.0  
+    TZ=Asia/Shanghai  
   
-# 替换为国内镜像源并安装必要的软件包  
-RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \  
-    sed -i 's|http://security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \  
-    apt-get update -y && apt-get install -y --no-install-recommends \  
+# 安装必要的软件包  
+RUN apt-get update -y && apt-get install -y --no-install-recommends \  
     software-properties-common \  
     tzdata \  
     curl \  
@@ -226,16 +223,15 @@ RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/so
     php-bcmath \  
     php-curl \  
     php-soap \  
-    sendmail && \  
+    sendmail \  
+    gnupg \  
+    ca-certificates && \  
     ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \  
     echo "Asia/Shanghai" > /etc/timezone && \  
     apt-get clean && rm -rf /var/lib/apt/lists/*  
   
-# 安装 Node.js 和 npm（通过清华大学镜像）  
-RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg && \  
-    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://mirrors.tuna.tsinghua.edu.cn/nodesource/deb_16.x focal main" > /etc/apt/sources.list.d/nodesource.list && \  
-    echo "deb-src [signed-by=/usr/share/keyrings/nodesource.gpg] https://mirrors.tuna.tsinghua.edu.cn/nodesource/deb_16.x focal main" >> /etc/apt/sources.list.d/nodesource.list && \  
-    apt-get update && \  
+# 安装 Node.js 和 npm（使用官方源）  
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \  
     apt-get install -y nodejs  
   
 # 验证 Node.js 和 npm 是否正确安装  
@@ -285,9 +281,6 @@ RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/co
 # 配置 Entrypoint 脚本  
 COPY misc/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh  
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh  
-  
-# 启动 Cron 服务  
-RUN service cron start  
   
 # 暴露端口  
 EXPOSE 80 22  
