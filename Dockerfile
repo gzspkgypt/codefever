@@ -285,30 +285,46 @@ COPY misc/docker/supervisor-codefever-modify-authorized-keys.conf /etc/superviso
 COPY misc/docker/supervisor-codefever-http-gateway.conf /etc/supervisor/conf.d/  
   
 # 配置 Codefever  
-RUN useradd -rm git && \  
-    mkdir -p /usr/local/php/bin && \  
-    ln -s /usr/bin/php /usr/local/php/bin/php && \  
-    cd /data/www/codefever-community/misc && \  
-    cp ./codefever-service-template /etc/init.d/codefever && \  
-    cp ../config.template.yaml ../config.yaml && \  
-    cp ../env.template.yaml ../env.yaml && \  
-    chmod 0777 ../config.yaml ../env.yaml && \  
-    mkdir -p ../application/logs && \  
-    chown -R git:git ../application/logs && \  
-    chmod -R 0777 ../application/logs && \  
-    chmod -R 0777 ../git-storage && \  
-    mkdir -p ../file-storage && \  
-    chown -R git:git ../file-storage && \  
-    chown -R git:git ../misc && \  
-    chmod +x /etc/supervisor/conf.d/codefever-modify-authorized-keys.conf && \  
+RUN useradd -rm git  
+  
+# 创建必要的目录并设置权限  
+RUN mkdir -p /usr/local/php/bin && \  
+    ln -s /usr/bin/php /usr/local/php/bin/php  
+  
+# 设置工作目录  
+WORKDIR /data/www/codefever-community  
+  
+# 复制配置文件  
+RUN cp config.template.yaml config.yaml && \  
+    cp env.template.yaml env.yaml && \  
+    chmod 0777 config.yaml env.yaml  
+  
+# 设置日志目录和权限  
+RUN mkdir -p application/logs && \  
+    chown -R git:git application/logs && \  
+    chmod -R 0777 application/logs  
+  
+# 设置 git 存储目录和权限  
+RUN chmod -R 0777 git-storage && \  
+    mkdir -p file-storage && \  
+    chown -R git:git file-storage  
+  
+# 配置 misc 目录权限  
+RUN chown -R git:git misc  
+  
+# 复制服务脚本  
+RUN cp misc/codefever-service-template /etc/init.d/codefever  
+  
+# 设置 Supervisor 配置文件权限  
+RUN chmod +x /etc/supervisor/conf.d/codefever-modify-authorized-keys.conf && \  
     chmod +x /etc/supervisor/conf.d/codefever-http-gateway.conf  
   
 # 安装 Composer  
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer  
   
 # 安装 PHP 依赖（通过 Composer）  
-RUN cd /data/www/codefever-community/application/libraries/composerlib && \  
-    php ./composer.phar install  
+RUN cd application/libraries/composerlib && \  
+    composer install --no-dev --ignore-platform-reqs  
   
 # 设置 Cron 任务  
 RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \  
@@ -320,9 +336,6 @@ RUN chown -R www-data:www-data /data/www
 # 复制 Entrypoint 脚本  
 COPY misc/docker/docker-entrypoint.sh /usr/local/bin/entrypoint.sh  
 RUN chmod +x /usr/local/bin/entrypoint.sh  
-  
-# 设置工作目录  
-WORKDIR /data/www/codefever-community  
   
 # 设置 Entrypoint  
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]  
