@@ -1,0 +1,44 @@
+name: Build ARM Docker Image
+
+on:
+  push:
+    branches:
+      - main  # 在推送到 `main` 分支时触发
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 设置 QEMU 和 Docker Buildx
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          install: true
+
+      # 构建 Docker 镜像到本地文件
+      - name: Build Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64  # 多架构支持
+          outputs: type=docker,dest=output-image.tar  # 将镜像保存为本地 tar 文件
+
+      # 将镜像文件保存为 GitHub Actions 的工件
+      - name: Upload image as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-image
+          path: output-image.tar
