@@ -88,48 +88,35 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
     NODE_VERSION=16.20.0
 
-# 更新软件源为阿里云，并安装必要软件包
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg \
-    software-properties-common \
-    tzdata && \
-    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
-    echo "Asia/Shanghai" > /etc/timezone && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# 替换为国内镜像源（阿里云）
+# 替换为国内镜像源并安装必要的软件包
 RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     sed -i 's|http://security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     apt-get update -y && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    tzdata \
+    curl \
+    zip \
+    unzip \
+    git \
     build-essential \
     libyaml-dev \
     libzip-dev \
-    git \
-    cron \
     golang-go \
-    zip \
-    sendmail \
-    mailutils \
+    cron \
+    vim \
     mysql-client \
-    vim && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# 安装 PHP 环境
-RUN add-apt-repository ppa:ondrej/php && apt-get update -y && apt-get install -y \
-    php7.4 \
-    php7.4-fpm \
-    php7.4-cli \
-    php7.4-zip \
-    php7.4-mysql \
-    php7.4-mbstring \
-    php7.4-curl \
-    php7.4-xml \
-    php7.4-bcmath \
-    php7.4-soap && \
+    php-cli \
+    php-fpm \
+    php-mysql \
+    php-zip \
+    php-mbstring \
+    php-xml \
+    php-bcmath \
+    php-curl \
+    php-soap \
+    sendmail && \
+    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 安装 Node.js 和 npm（通过清华大学镜像）
@@ -146,8 +133,10 @@ RUN node -v && npm -v
 
 # 拉取代码仓库
 RUN mkdir -p /data/www && \
-    cd /data/www && \
-    git clone https://github.com/PGYER/codefever.git codefever-community
+    git clone https://github.com/PGYER/codefever.git /data/www/codefever-community
+
+# 安装 Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
 # 构建 Go 项目
 RUN cd /data/www/codefever-community/http-gateway && \
@@ -159,34 +148,36 @@ RUN cd /data/www/codefever-community/http-gateway && \
 
 # 配置 Codefever
 RUN useradd -rm git && \
-    mkdir /usr/local/php/bin && \
+    mkdir -p /usr/local/php/bin && \
     ln -s /usr/bin/php /usr/local/php/bin/php && \
     cd /data/www/codefever-community/misc && \
     cp ./codefever-service-template /etc/init.d/codefever && \
     cp ../config.template.yaml ../config.yaml && \
     cp ../env.template.yaml ../env.yaml && \
     chmod 0777 ../config.yaml ../env.yaml && \
-    mkdir ../application/logs && \
+    mkdir -p ../application/logs && \
     chown -R git:git ../application/logs && \
     chmod -R 0777 ../application/logs && \
     chmod -R 0777 ../git-storage && \
-    mkdir ../file-storage && \
+    mkdir -p ../file-storage && \
     chown -R git:git ../file-storage && \
-    chown -R git:git ../misc && \
-    cd ../application/libraries/composerlib/ && \
-    php ./composer.phar install --no-dev
+    chown -R git:git ../misc
+
+# 安装 PHP 依赖（通过 Composer）
+RUN cd /data/www/codefever-community/application/libraries/composerlib && \
+    composer install --no-dev --ignore-platform-reqs
 
 # 安装和配置 Cron 任务
 RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \
     chmod 0644 /etc/cron.d/codefever-cron && \
     crontab /etc/cron.d/codefever-cron
 
-# 启动 Cron 服务
-RUN service cron start
-
 # 配置 Entrypoint 脚本
 COPY misc/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# 启动 Cron 服务
+RUN service cron start
 
 # 暴露端口
 EXPOSE 80 22
