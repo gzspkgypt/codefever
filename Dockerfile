@@ -88,10 +88,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
     NODE_VERSION=16.20.0
 
-# 替换为国内镜像源（阿里云），并安装必要软件包
-RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
-    apt-get update -y && apt-get install -y --no-install-recommends \
+# 使用官方推荐的阿里云镜像配置文件替换源
+RUN mv /etc/apt/sources.list /etc/apt/sources.list.bak && \
+    echo "deb http://mirrors.aliyun.com/debian buster main contrib non-free" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian buster-updates main contrib non-free" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian-security buster/updates main contrib non-free" >> /etc/apt/sources.list
+
+# 更新包管理器并安装所需依赖
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
     apt-transport-https \
     ca-certificates \
     curl \
@@ -107,10 +111,11 @@ RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/source
     sendmail \
     mailutils \
     default-mysql-client \
-    vim \
-  && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+    vim && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# 安装 Node.js 和 npm（通过备用镜像源安装）
+# 安装 Node.js 和 npm
 RUN curl -fsSL https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.xz -o node.tar.xz && \
     mkdir -p /usr/local/lib/nodejs && \
     tar -xJf node.tar.xz -C /usr/local/lib/nodejs --strip-components=1 && \
@@ -160,7 +165,7 @@ RUN useradd -rm git && \
     cd ../application/libraries/composerlib/ && \
     php ./composer.phar install --no-dev
 
-# 安装和配置 Cron 任务
+# 配置 Cron 任务
 RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \
     chmod 0644 /etc/cron.d/codefever-cron && \
     crontab /etc/cron.d/codefever-cron
