@@ -77,28 +77,26 @@
 
 
 
-# 使用官方 PHP Nginx 镜像作为基础镜像
+# 使用基础 PHP Nginx 镜像
 FROM webdevops/php-nginx:7.4
 LABEL maintainer="rexshi <rexshi@pgyer.com>"
 
-# 设置非交互模式，避免交互提示
+# 设置非交互模式
 ENV DEBIAN_FRONTEND=noninteractive
 ENV GO111MODULE=off
 
-# 替换为更可靠的国内镜像源（提高速度，解决源访问问题）
+# 增加国内镜像源，提高软件包下载速度
 RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list
 
-# 更新系统并安装所需依赖（分步骤安装，避免一次性失败）
+# 更新系统并安装必要依赖
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
         apt-transport-https \
         ca-certificates \
         gnupg \
         dirmngr \
-        software-properties-common && \
-    apt-get install -y --no-install-recommends \
-        apt-utils \
+        software-properties-common \
         wget \
         curl \
         lsb-release \
@@ -116,8 +114,8 @@ RUN apt-get update -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 检查关键命令是否正确安装
-RUN php -v && git --version && go version || echo "One or more dependencies failed to install."
+# 检查关键命令是否正确安装并输出版本信息
+RUN php -v && git --version && go version
 
 # 安装 PHP YAML 扩展
 RUN pecl install yaml && \
@@ -130,19 +128,18 @@ RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 启用容器内服务：SSH 和 Cron
+# 启用容器内 SSH 和 Cron 服务
 RUN docker-service enable ssh && docker-service enable cron
 
 # 拉取 Codefever 仓库代码
 RUN mkdir -p /data/www && \
     cd /data/www && \
-    git clone https://github.com/PGYER/codefever.git codefever-community && \
-    cd codefever-community
+    git clone https://github.com/PGYER/codefever.git codefever-community
 
 # 配置 Nginx
 COPY ./misc/docker/vhost.conf-template /opt/docker/etc/nginx/vhost.conf
 
-# 构建 Go 项目
+# 构建 Go 项目（分步骤处理）
 RUN cd /data/www/codefever-community/http-gateway && \
     go get -d ./... && \
     go build -o main main.go && \
