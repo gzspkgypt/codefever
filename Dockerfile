@@ -189,12 +189,9 @@
 
 
 
-
-
 # 使用 Ubuntu 20.04 作为基础镜像  
 FROM ubuntu:20.04  
   
-# 维护者信息  
 LABEL maintainer="rexshi <rexshi@pgyer.com>"  
   
 # 暴露端口  
@@ -203,8 +200,7 @@ EXPOSE 80 22
 # 设置环境变量  
 ENV DEBIAN_FRONTEND=noninteractive \  
     TZ=Asia/Shanghai \  
-    GO111MODULE=on \  
-    GOPROXY=https://goproxy.cn,direct  
+    GO111MODULE=off  
   
 # 设置时区  
 RUN ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \  
@@ -247,7 +243,8 @@ RUN apt-get update && apt-get install -y \
     php7.4-bcmath \  
     php7.4-curl \  
     php7.4-soap \  
-    php7.4-gd  
+    php7.4-gd \  
+    golang-go  
   
 # 安装 PECL 扩展 yaml  
 RUN pecl channel-update pecl.php.net && \  
@@ -258,14 +255,6 @@ RUN pecl channel-update pecl.php.net && \
 # 安装 Node.js（使用官方源）  
 RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \  
     apt-get install -y nodejs  
-  
-# 安装 Go  
-ENV GO_VERSION=1.20.5  
-RUN wget -q https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \  
-    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \  
-    rm go${GO_VERSION}.linux-amd64.tar.gz  
-ENV PATH="/usr/local/go/bin:${PATH}"  
-RUN go version  
   
 # 启用 corepack  
 RUN corepack enable  
@@ -283,12 +272,12 @@ RUN mkdir -p /data/www && \
 COPY misc/docker/vhost.conf-template /etc/nginx/sites-available/default  
   
 # 构建 Go 项目  
-WORKDIR /data/www/codefever-community/http-gateway  
-RUN go mod tidy && \  
+RUN cd /data/www/codefever-community/http-gateway && \  
+    go get gopkg.in/yaml.v2 && \  
     go build -o main main.go  
   
-WORKDIR /data/www/codefever-community/ssh-gateway/shell  
-RUN go mod tidy && \  
+RUN cd /data/www/codefever-community/ssh-gateway/shell && \  
+    go get gopkg.in/yaml.v2 && \  
     go build -o main main.go  
   
 # 复制 Supervisor 配置  
@@ -318,8 +307,8 @@ RUN useradd -rm git && \
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer  
   
 # 安装 PHP 依赖（通过 Composer）  
-WORKDIR /data/www/codefever-community/application/libraries/composerlib  
-RUN composer install --no-dev --ignore-platform-reqs  
+RUN cd /data/www/codefever-community/application/libraries/composerlib && \  
+    php ./composer.phar install  
   
 # 设置 Cron 任务  
 RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \  
