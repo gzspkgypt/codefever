@@ -292,11 +292,13 @@ RUN cd application/libraries/composerlib && \
     composer install --no-dev --ignore-platform-reqs  
   
 # 复制 Nginx 配置  
-COPY ./misc/docker/vhost.conf-template /etc/nginx/sites-available/default  
+COPY misc/docker/vhost.conf-template /etc/nginx/sites-available/default  
   
-# 复制 Supervisor 配置并设置权限  
-COPY ./misc/docker/supervisor-codefever-modify-authorized-keys.conf /etc/supervisor/conf.d/  
-COPY ./misc/docker/supervisor-codefever-http-gateway.conf /etc/supervisor/conf.d/  
+# 复制 Supervisor 配置文件  
+COPY misc/docker/supervisor-codefever-modify-authorized-keys.conf /etc/supervisor/conf.d/codefever-modify-authorized-keys.conf  
+COPY misc/docker/supervisor-codefever-http-gateway.conf /etc/supervisor/conf.d/codefever-http-gateway.conf  
+  
+# 设置 Supervisor 配置文件权限  
 RUN chmod 644 /etc/supervisor/conf.d/codefever-modify-authorized-keys.conf && \  
     chmod 644 /etc/supervisor/conf.d/codefever-http-gateway.conf  
   
@@ -324,7 +326,7 @@ RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/co
 RUN chown -R www-data:www-data /data/www  
   
 # 复制 Entrypoint 脚本并设置权限  
-COPY ./misc/docker/docker-entrypoint.sh /usr/local/bin/entrypoint.sh  
+COPY misc/docker/docker-entrypoint.sh /usr/local/bin/entrypoint.sh  
 RUN chmod +x /usr/local/bin/entrypoint.sh  
   
 # 设置 Entrypoint  
