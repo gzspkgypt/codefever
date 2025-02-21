@@ -40,11 +40,11 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64  # 多架构支持
-          outputs: type=docker,dest=output-image.tar  # 将镜像保存为本地 tar 文件
+          outputs: type=oci,dest=output-image.tar  # 使用 OCI 导出器保存为本地 tar 文件
 
       # 将镜像文件保存为 GitHub Actions 的工件
       - name: Upload image as artifact
-        uses: actions/upload-artifact@v4  # 使用 v4 版本
+        uses: actions/upload-artifact@v4
         with:
           name: docker-image
           path: output-image.tar
