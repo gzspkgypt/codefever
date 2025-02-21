@@ -122,7 +122,7 @@ RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/so
 
 # 安装 Node.js 和 npm
 # 使用 Nodesource 官方镜像并切换到中国镜像源进行安装
-RUN curl -fsSL https://deb.nodesource.com/setup_$NODE_VERSION | bash - && \
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
     apt-get install -y nodejs && \
     npm config set registry https://registry.npmmirror.com && \
     node -v && npm -v
