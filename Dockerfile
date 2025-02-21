@@ -78,17 +78,22 @@
 
 
 FROM webdevops/php-nginx:7.4
-MAINTAINER rexshi <rexshi@pgyer.com>
+LABEL maintainer="rexshi <rexshi@pgyer.com>"
 
 EXPOSE 80 22
+ENV DEBIAN_FRONTEND=noninteractive
 ENV GO111MODULE=off
 
 # 更新并安装必要的依赖
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
+        apt-utils \
         wget \
         curl \
+        gnupg \
         software-properties-common \
+        dirmngr \
+        lsb-release \
         libyaml-dev \
         libzip-dev \
         git \
@@ -98,6 +103,7 @@ RUN apt-get update -y \
         mailutils \
         default-mysql-client \
         vim \
+    && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -107,16 +113,10 @@ RUN pecl install yaml \
     && docker-php-ext-enable yaml
 
 # 安装 Node.js
-RUN cd /usr/local \
-    && wget https://nodejs.org/dist/v16.15.1/node-v16.15.1-linux-x64.tar.xz \
-    && tar -xf node-v16.15.1-linux-x64.tar.xz \
-    && rm -rf node-v16.15.1-linux-x64.tar.xz \
-    && mv node-v16.15.1-linux-x64 node \
-    && ln -s /usr/local/node/bin/node /usr/local/bin/node \
-    && ln -s /usr/local/node/bin/npm /usr/local/bin/npm \
-    && ln -s /usr/local/node/bin/npx /usr/local/bin/npx \
-    && ln -s /usr/local/node/bin/corepack /usr/local/bin/corepack \
-    && corepack enable
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # 启用 SSH 和 Cron 服务
 RUN docker-service enable ssh && docker-service enable cron
