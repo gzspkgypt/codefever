@@ -83,10 +83,12 @@ MAINTAINER rexshi <rexshi@pgyer.com>
 EXPOSE 80 22
 ENV GO111MODULE=off
 
-# 更新并安装依赖
+# 安装必要的依赖
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
+        software-properties-common \
         libyaml-dev \
+        libzip-dev \
         git \
         golang-go \
         zip \
@@ -94,10 +96,13 @@ RUN apt-get update -y \
         mailutils \
         mariadb-client \
         vim \
-    && pecl install yaml \
-    && docker-php-ext-enable yaml \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# 安装 PHP YAML 扩展
+RUN pecl install yaml \
+    && echo "extension=yaml.so" > /usr/local/etc/php/conf.d/yaml.ini \
+    && docker-php-ext-enable yaml
 
 # 安装 Node.js
 RUN cd /usr/local \
