@@ -77,11 +77,11 @@
 
 
 
-# 使用 WebDevOps 的 PHP-Nginx 镜像作为基础镜像
+# 使用 webdevops 的 PHP-Nginx 镜像作为基础镜像
 FROM webdevops/php-nginx:7.4
 
-# 维护者信息
-MAINTAINER rexshi <rexshi@pgyer.com>
+# 设置维护者信息
+LABEL maintainer="rexshi <rexshi@pgyer.com>"
 
 # 暴露端口
 EXPOSE 80 22
@@ -90,11 +90,13 @@ EXPOSE 80 22
 ENV DEBIAN_FRONTEND=noninteractive
 ENV GO111MODULE=off
 
-# 替换 APT 源为清华源并安装必要的包
+# 替换镜像源为国内源并更新系统
 RUN sed -i 's|http://deb.debian.org/debian|https://mirrors.tuna.tsinghua.edu.cn/debian|g' /etc/apt/sources.list && \
     sed -i 's|http://security.debian.org/debian-security|https://mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list && \
-    apt-get update -y && \
-    apt-get install -y --no-install-recommends \
+    apt-get update -y && apt-get upgrade -y
+
+# 安装必需的依赖
+RUN apt-get install -y --no-install-recommends \
         libyaml-dev \
         git \
         golang-go \
@@ -106,14 +108,14 @@ RUN sed -i 's|http://deb.debian.org/debian|https://mirrors.tuna.tsinghua.edu.cn/
         wget \
         gcc \
         make \
-        autoconf && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+        autoconf \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# 安装 YAML PHP 扩展
+# 安装 PHP 的 YAML 扩展
 RUN pecl install yaml && docker-php-ext-enable yaml
 
-# 验证 PHP 是否正确加载 yaml 扩展
+# 验证 PHP 是否加载了 yaml 扩展
 RUN php -m | grep yaml
 
 # 安装 Node.js
@@ -131,14 +133,11 @@ RUN cd /usr/local && \
 # 启用 SSH 和 Cron 服务
 RUN docker-service enable ssh && docker-service enable cron
 
-# 下载 Codefever 源码到指定路径
+# 下载 Codefever 源码
 RUN mkdir -p /data/www && \
     cd /data/www && \
     git clone https://github.com/PGYER/codefever.git codefever-community && \
     cd codefever-community
-
-# 配置 Nginx 虚拟主机
-COPY ./misc/docker/vhost.conf-template /opt/docker/etc/nginx/vhost.conf
 
 # 编译 Go 程序
 RUN cd /data/www/codefever-community/http-gateway && \
@@ -148,11 +147,7 @@ RUN cd /data/www/codefever-community/http-gateway && \
     go get gopkg.in/yaml.v2 && \
     go build -o main main.go
 
-# 配置 Codefever 服务
-COPY misc/docker/supervisor-codefever-modify-authorized-keys.conf /opt/docker/etc/supervisor.d/codefever-modify-authorized-keys.conf
-COPY misc/docker/supervisor-codefever-http-gateway.conf /opt/docker/etc/supervisor.d/codefever-http-gateway.conf
-
-# 设置文件权限和初始化配置
+# 配置文件与权限设置
 RUN useradd -rm git && \
     mkdir -p /usr/local/php/bin && \
     ln -s /usr/local/bin/php /usr/local/php/bin/php && \
