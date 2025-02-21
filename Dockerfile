@@ -244,6 +244,8 @@ RUN apt-get update && apt-get install -y \
     php7.4-curl \  
     php7.4-soap \  
     php7.4-gd \  
+    php7.4-intl \  
+    php7.4-ldap \  
     golang-go  
   
 # 安装 PECL 扩展 yaml  
@@ -282,9 +284,12 @@ RUN cd http-gateway && \
 # 安装 Composer  
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer  
   
+# 配置 Composer 镜像源（推荐）  
+RUN composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/  
+  
 # 安装 PHP 依赖（通过 Composer）  
 RUN cd application/libraries/composerlib && \  
-    php ../../../../composer.phar install --no-dev --ignore-platform-reqs  
+    composer install --no-dev --ignore-platform-reqs  
   
 # 复制 Nginx 配置  
 COPY misc/docker/vhost.conf-template /etc/nginx/sites-available/default  
