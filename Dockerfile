@@ -262,7 +262,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
 RUN corepack enable  
   
 # 配置 SSH 服务  
-RUN mkdir /var/run/sshd && \  
+RUN mkdir -p /var/run/sshd && \  
     echo 'root:password' | chpasswd && \  
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config  
   
@@ -284,7 +284,7 @@ RUN cd http-gateway && \
 # 安装 Composer  
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer  
   
-# 配置 Composer 镜像源（推荐）  
+# 配置 Composer 镜像源（可选）  
 RUN composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/  
   
 # 安装 PHP 依赖（通过 Composer）  
@@ -292,15 +292,13 @@ RUN cd application/libraries/composerlib && \
     composer install --no-dev --ignore-platform-reqs  
   
 # 复制 Nginx 配置  
-COPY misc/docker/vhost.conf-template /etc/nginx/sites-available/default  
+COPY ./misc/docker/vhost.conf-template /etc/nginx/sites-available/default  
   
-# 复制 Supervisor 配置  
-COPY misc/docker/supervisor-codefever-modify-authorized-keys.conf /etc/supervisor/conf.d/  
-COPY misc/docker/supervisor-codefever-http-gateway.conf /etc/supervisor/conf.d/  
-  
-# 设置 Supervisor 配置文件权限  
-RUN chmod +x /etc/supervisor/conf.d/codefever-modify-authorized-keys.conf && \  
-    chmod +x /etc/supervisor/conf.d/codefever-http-gateway.conf  
+# 复制 Supervisor 配置并设置权限  
+COPY ./misc/docker/supervisor-codefever-modify-authorized-keys.conf /etc/supervisor/conf.d/  
+COPY ./misc/docker/supervisor-codefever-http-gateway.conf /etc/supervisor/conf.d/  
+RUN chmod 644 /etc/supervisor/conf.d/codefever-modify-authorized-keys.conf && \  
+    chmod 644 /etc/supervisor/conf.d/codefever-http-gateway.conf  
   
 # 配置 Codefever  
 RUN useradd -rm git && \  
@@ -325,8 +323,8 @@ RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/co
 # 确保权限正确  
 RUN chown -R www-data:www-data /data/www  
   
-# 复制 Entrypoint 脚本  
-COPY misc/docker/docker-entrypoint.sh /usr/local/bin/entrypoint.sh  
+# 复制 Entrypoint 脚本并设置权限  
+COPY ./misc/docker/docker-entrypoint.sh /usr/local/bin/entrypoint.sh  
 RUN chmod +x /usr/local/bin/entrypoint.sh  
   
 # 设置 Entrypoint  
