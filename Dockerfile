@@ -77,26 +77,20 @@
 
 
 
-# 使用 webdevops 的 PHP-Nginx 镜像作为基础镜像
+# 使用webdevops/php-nginx:7.4作为基础镜像
 FROM webdevops/php-nginx:7.4
 
-# 设置维护者信息
-LABEL maintainer="rexshi <rexshi@pgyer.com>"
-
-# 暴露端口
-EXPOSE 80 22
-
-# 设置环境变量
+# 设置环境变量以避免交互提示
 ENV DEBIAN_FRONTEND=noninteractive
-ENV GO111MODULE=off
 
-# 替换镜像源为国内源并更新系统
-RUN sed -i 's|http://deb.debian.org/debian|https://mirrors.tuna.tsinghua.edu.cn/debian|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.debian.org/debian-security|https://mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list && \
-    apt-get update -y && apt-get upgrade -y
-
-# 安装必需的依赖
-RUN apt-get install -y --no-install-recommends \
+# 替换APT源为国内清华镜像，并安装必要的软件包
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list ]; then \
+        sed -i 's|http://deb.debian.org/debian|https://mirrors.tuna.tsinghua.edu.cn/debian|g' /etc/apt/sources.list && \
+        sed -i 's|http://security.debian.org/debian-security|https://mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list; \
+    fi; \
+    apt-get update -y && \
+    apt-get install -y --no-install-recommends \
         libyaml-dev \
         git \
         golang-go \
@@ -108,38 +102,30 @@ RUN apt-get install -y --no-install-recommends \
         wget \
         gcc \
         make \
-        autoconf \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+        autoconf && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # 安装 PHP 的 YAML 扩展
 RUN pecl install yaml && docker-php-ext-enable yaml
 
-# 验证 PHP 是否加载了 yaml 扩展
+# 验证 PHP 是否正确加载 yaml 扩展
 RUN php -m | grep yaml
 
-# 安装 Node.js
-RUN cd /usr/local && \
-    wget https://nodejs.org/dist/v16.15.1/node-v16.15.1-linux-x64.tar.xz && \
-    tar -xf node-v16.15.1-linux-x64.tar.xz && \
-    rm -f node-v16.15.1-linux-x64.tar.xz && \
-    mv node-v16.15.1-linux-x64 node && \
-    ln -s /usr/local/node/bin/node /usr/local/bin/node && \
-    ln -s /usr/local/node/bin/npm /usr/local/bin/npm && \
-    ln -s /usr/local/node/bin/npx /usr/local/bin/npx && \
-    ln -s /usr/local/node/bin/corepack /usr/local/bin/corepack && \
-    corepack enable
+# 安装 Node.js 和 npm
+RUN wget -qO- https://deb.nodesource.com/setup_16.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    npm install -g corepack && \
+    corepack enable && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 启用 SSH 和 Cron 服务
-RUN docker-service enable ssh && docker-service enable cron
-
-# 下载 Codefever 源码
+# 下载 Codefever 源码到指定路径
 RUN mkdir -p /data/www && \
     cd /data/www && \
     git clone https://github.com/PGYER/codefever.git codefever-community && \
     cd codefever-community
 
-# 编译 Go 程序
+# 编译 Codefever 的 Go 程序
 RUN cd /data/www/codefever-community/http-gateway && \
     go get gopkg.in/yaml.v2 && \
     go build -o main main.go && \
@@ -147,7 +133,7 @@ RUN cd /data/www/codefever-community/http-gateway && \
     go get gopkg.in/yaml.v2 && \
     go build -o main main.go
 
-# 配置文件与权限设置
+# 设置文件权限和配置初始化
 RUN useradd -rm git && \
     mkdir -p /usr/local/php/bin && \
     ln -s /usr/local/bin/php /usr/local/php/bin/php && \
@@ -163,13 +149,22 @@ RUN useradd -rm git && \
     mkdir ../file-storage && \
     chown -R git:git ../file-storage && \
     chown -R git:git ../misc && \
-    chmod +x /opt/docker/etc/supervisor.d/codefever-modify-authorized-keys.conf && \
-    chmod +x /opt/docker/etc/supervisor.d/codefever-http-gateway.conf && \
     cd ../application/libraries/composerlib/ && \
     php ./composer.phar install
 
 # 配置 Cron 工作任务
-RUN docker-cronjob '* * * * *  sh /data/www/codefever-community/application/backend/codefever_schedule.sh'
+RUN echo '* * * * *  sh /data/www/codefever-community/application/backend/codefever_schedule.sh' > /etc/cron.d/codefever-cron && \
+    chmod 0644 /etc/cron.d/codefever-cron && \
+    crontab /etc/cron.d/codefever-cron
+
+# 启用 SSH 和 Cron 服务
+RUN docker-service enable ssh && docker-service enable cron
+
+# 配置 Nginx 虚拟主机
+COPY ./misc/docker/vhost.conf-template /opt/docker/etc/nginx/vhost.conf
 
 # 配置启动脚本
-COPY misc/docker/docker-entrypoint.sh /opt/docker/provision/entrypoint.d/20-codefever.sh
+COPY ./misc/docker/docker-entrypoint.sh /opt/docker/provision/entrypoint.d/20-codefever.sh
+
+# 暴露端口
+EXPOSE 80 22
