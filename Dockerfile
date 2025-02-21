@@ -190,6 +190,7 @@
 
 
 
+
 # 使用 Ubuntu 20.04 作为基础镜像  
 FROM ubuntu:20.04  
   
@@ -202,10 +203,9 @@ EXPOSE 80 22
 # 设置环境变量  
 ENV DEBIAN_FRONTEND=noninteractive \  
     TZ=Asia/Shanghai \  
-    GO111MODULE=off \  
-    PHP_VERSION=7.4  
+    GO111MODULE=off  
   
-# 更新时区  
+# 设置时区  
 RUN ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \  
     echo "${TZ}" > /etc/timezone  
   
@@ -228,32 +228,30 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \  
     libssl-dev \  
     ca-certificates \  
-    gnupg \  
+    gnupg2 \  
+    lsb-release \  
     openssh-server \  
     cron \  
     supervisor \  
-    nginx  
-  
-# 安装 PHP 7.4 及其扩展  
-RUN add-apt-repository ppa:ondrej/php && apt-get update && apt-get install -y \  
-    php${PHP_VERSION} \  
-    php${PHP_VERSION}-fpm \  
-    php${PHP_VERSION}-cli \  
-    php${PHP_VERSION}-dev \  
-    php${PHP_VERSION}-pear \  
-    php${PHP_VERSION}-mysql \  
-    php${PHP_VERSION}-zip \  
-    php${PHP_VERSION}-mbstring \  
-    php${PHP_VERSION}-xml \  
-    php${PHP_VERSION}-bcmath \  
-    php${PHP_VERSION}-curl \  
-    php${PHP_VERSION}-soap \  
-    php${PHP_VERSION}-gd  
+    nginx \  
+    php7.4 \  
+    php7.4-fpm \  
+    php7.4-cli \  
+    php7.4-dev \  
+    php-pear \  
+    php7.4-mysql \  
+    php7.4-zip \  
+    php7.4-mbstring \  
+    php7.4-xml \  
+    php7.4-bcmath \  
+    php7.4-curl \  
+    php7.4-soap \  
+    php7.4-gd  
   
 # 安装 PECL 扩展 yaml  
 RUN pecl channel-update pecl.php.net && \  
     pecl install yaml && \  
-    echo "extension=yaml.so" > /etc/php/${PHP_VERSION}/mods-available/yaml.ini && \  
+    echo "extension=yaml.so" > /etc/php/7.4/mods-available/yaml.ini && \  
     phpenmod yaml  
   
 # 安装 Node.js（使用官方源）  
@@ -330,7 +328,7 @@ RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/co
 # 确保权限正确  
 RUN chown -R www-data:www-data /data/www  
   
-# 配置 Entrypoint 脚本  
+# 复制 Entrypoint 脚本  
 COPY misc/docker/docker-entrypoint.sh /usr/local/bin/entrypoint.sh  
 RUN chmod +x /usr/local/bin/entrypoint.sh  
   
