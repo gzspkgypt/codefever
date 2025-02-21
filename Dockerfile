@@ -87,11 +87,11 @@ LABEL maintainer="rexshi <rexshi@pgyer.com>"
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai
 
-# 替换 apt 镜像为国内镜像源（阿里云）
+# 替换为国内镜像源（阿里云）以提升下载速度
 RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list
 
-# 安装系统依赖和必需的软件包
+# 更新系统并安装基础依赖
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
     apt-transport-https \
     ca-certificates \
@@ -113,17 +113,21 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     vim \
   && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# 安装 Node.js 和 npm（通过 Debian 官方存储库安装）
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_16.x $(lsb_release -cs) main" > /etc/apt/sources.list.d/nodesource.list && \
+    apt-get update -y && apt-get install -y nodejs && \
+    npm install -g npm@latest && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# 验证安装是否成功
+RUN node -v && npm -v
+
 # 安装 PHP 扩展
 RUN docker-php-ext-install zip && \
     pecl install yaml && \
     echo "extension=yaml.so" > /usr/local/etc/php/conf.d/yaml.ini && \
     docker-php-ext-enable yaml
-
-# 安装 Node.js 和 npm
-RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
-    apt-get install -y nodejs && \
-    npm install -g npm@latest && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 拉取 Codefever 源代码
 RUN mkdir -p /data/www && \
@@ -161,9 +165,6 @@ RUN useradd -rm git && \
 RUN echo "* * * * *  sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \
     chmod 0644 /etc/cron.d/codefever-cron && \
     crontab /etc/cron.d/codefever-cron
-
-# 配置 Nginx（如果需要）
-# COPY ./misc/docker/vhost.conf-template /etc/nginx/sites-enabled/default
 
 # 配置 Entrypoint 脚本
 COPY misc/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
