@@ -189,85 +189,115 @@
 
 
 
-# Use Ubuntu 20.04 as the base image  
+
+# 使用 Ubuntu 20.04 作为基础镜像  
 FROM ubuntu:20.04  
   
-# Maintainer information  
+# 维护者信息  
 LABEL maintainer="rexshi <rexshi@pgyer.com>"  
   
-# Set environment variables  
+# 暴露端口  
+EXPOSE 80 22  
+  
+# 设置环境变量  
 ENV DEBIAN_FRONTEND=noninteractive \  
     TZ=Asia/Shanghai \  
-    GO_VERSION=1.20.5 \  
-    GOPROXY=https://goproxy.cn,direct \  
-    GO111MODULE=on  
+    GO111MODULE=off \  
+    PHP_VERSION=7.4  
   
-# Install necessary packages  
-RUN apt-get update -y && apt-get install -y --no-install-recommends \  
-    tzdata \  
+# 更新时区  
+RUN ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \  
+    echo "${TZ}" > /etc/timezone  
+  
+# 安装必要的软件包  
+RUN apt-get update && apt-get install -y \  
+    software-properties-common \  
     curl \  
     wget \  
     git \  
+    vim \  
+    unzip \  
+    zip \  
+    sendmail \  
+    mailutils \  
+    mariadb-client \  
     build-essential \  
     libyaml-dev \  
     libzip-dev \  
-    cron \  
-    vim \  
-    mysql-client \  
-    php-cli \  
-    php-fpm \  
-    php-mysql \  
-    php-zip \  
-    php-mbstring \  
-    php-xml \  
-    php-bcmath \  
-    php-curl \  
-    php-soap \  
-    sendmail \  
-    gnupg \  
+    libonig-dev \  
+    libxml2-dev \  
+    libssl-dev \  
     ca-certificates \  
-    openssh-client \  
+    gnupg \  
     openssh-server \  
-    net-tools && \  
-    ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \  
-    echo "${TZ}" > /etc/timezone && \  
-    apt-get clean && rm -rf /var/lib/apt/lists/*  
+    cron \  
+    supervisor \  
+    nginx  
   
-# Install Go  
-RUN wget -q https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz && \  
-    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \  
-    rm go${GO_VERSION}.linux-amd64.tar.gz  
+# 安装 PHP 7.4 及其扩展  
+RUN add-apt-repository ppa:ondrej/php && apt-get update && apt-get install -y \  
+    php${PHP_VERSION} \  
+    php${PHP_VERSION}-fpm \  
+    php${PHP_VERSION}-cli \  
+    php${PHP_VERSION}-dev \  
+    php${PHP_VERSION}-pear \  
+    php${PHP_VERSION}-mysql \  
+    php${PHP_VERSION}-zip \  
+    php${PHP_VERSION}-mbstring \  
+    php${PHP_VERSION}-xml \  
+    php${PHP_VERSION}-bcmath \  
+    php${PHP_VERSION}-curl \  
+    php${PHP_VERSION}-soap \  
+    php${PHP_VERSION}-gd  
   
-# Set Go environment variables  
-ENV PATH="/usr/local/go/bin:${PATH}"  
+# 安装 PECL 扩展 yaml  
+RUN pecl channel-update pecl.php.net && \  
+    pecl install yaml && \  
+    echo "extension=yaml.so" > /etc/php/${PHP_VERSION}/mods-available/yaml.ini && \  
+    phpenmod yaml  
   
-# Verify Go installation  
-RUN go version  
-  
-# Install Node.js and npm (using official source)  
+# 安装 Node.js（使用官方源）  
 RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \  
     apt-get install -y nodejs  
   
-# Verify Node.js and npm installation  
-RUN node -v && npm -v  
+# 安装 Go  
+ENV GO_VERSION=1.20.5  
+RUN wget -q https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \  
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \  
+    rm go${GO_VERSION}.linux-amd64.tar.gz  
+ENV PATH="/usr/local/go/bin:${PATH}"  
   
-# Pull code repository  
+# 启用 corepack  
+RUN corepack enable  
+  
+# 配置 SSH 服务  
+RUN mkdir /var/run/sshd && \  
+    echo 'root:password' | chpasswd && \  
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config  
+  
+# 克隆 Codefever 仓库  
 RUN mkdir -p /data/www && \  
     git clone https://github.com/PGYER/codefever.git /data/www/codefever-community  
   
-# Build Go project: http-gateway  
+# Nginx 配置  
+COPY misc/docker/vhost.conf-template /etc/nginx/sites-available/default  
+  
+# 构建 Go 项目  
 WORKDIR /data/www/codefever-community/http-gateway  
-RUN go env && \  
-    go mod tidy && \  
-    go build -v -o main main.go  
+RUN go mod init codefever-http-gateway && \  
+    go get gopkg.in/yaml.v2 && \  
+    go build -o main main.go  
   
-# Build Go project: ssh-gateway  
 WORKDIR /data/www/codefever-community/ssh-gateway/shell  
-RUN go env && \  
-    go mod tidy && \  
-    go build -v -o main main.go  
+RUN go mod init codefever-ssh-gateway && \  
+    go get gopkg.in/yaml.v2 && \  
+    go build -o main main.go  
   
-# Configure Codefever  
+# 复制 Supervisor 配置  
+COPY misc/docker/supervisor-codefever-modify-authorized-keys.conf /etc/supervisor/conf.d/  
+COPY misc/docker/supervisor-codefever-http-gateway.conf /etc/supervisor/conf.d/  
+  
+# 配置 Codefever  
 RUN useradd -rm git && \  
     mkdir -p /usr/local/php/bin && \  
     ln -s /usr/bin/php /usr/local/php/bin/php && \  
@@ -282,28 +312,33 @@ RUN useradd -rm git && \
     chmod -R 0777 ../git-storage && \  
     mkdir -p ../file-storage && \  
     chown -R git:git ../file-storage && \  
-    chown -R git:git ../misc  
+    chown -R git:git ../misc && \  
+    chmod +x /etc/supervisor/conf.d/codefever-modify-authorized-keys.conf && \  
+    chmod +x /etc/supervisor/conf.d/codefever-http-gateway.conf  
   
-# Install Composer  
+# 安装 Composer  
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer  
   
-# Install PHP dependencies (via Composer)  
+# 安装 PHP 依赖（通过 Composer）  
 WORKDIR /data/www/codefever-community/application/libraries/composerlib  
 RUN composer install --no-dev --ignore-platform-reqs  
   
-# Install and configure Cron task  
+# 设置 Cron 任务  
 RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \  
     chmod 0644 /etc/cron.d/codefever-cron  
   
-# Copy Entrypoint script  
-COPY misc/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh  
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh  
+# 确保权限正确  
+RUN chown -R www-data:www-data /data/www  
   
-# Expose ports  
-EXPOSE 80 22  
+# 配置 Entrypoint 脚本  
+COPY misc/docker/docker-entrypoint.sh /usr/local/bin/entrypoint.sh  
+RUN chmod +x /usr/local/bin/entrypoint.sh  
   
-# Set the entrypoint script  
-ENTRYPOINT ["docker-entrypoint.sh"]  
+# 设置工作目录  
+WORKDIR /data/www/codefever-community  
   
-# Set default command  
-CMD ["php-fpm"]  
+# 设置 Entrypoint  
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]  
+  
+# 默认命令  
+CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]  
