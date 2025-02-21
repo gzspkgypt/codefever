@@ -188,6 +188,7 @@
 
 
 
+
 # 使用 Ubuntu 20.04 作为基础镜像  
 FROM ubuntu:20.04  
   
@@ -196,7 +197,8 @@ LABEL maintainer="rexshi <rexshi@pgyer.com>"
   
 # 设置环境变量  
 ENV DEBIAN_FRONTEND=noninteractive \  
-    TZ=Asia/Shanghai  
+    TZ=Asia/Shanghai \  
+    NODE_VERSION=16.20.0  
   
 # 替换为国内镜像源并安装必要的软件包  
 RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \  
@@ -230,9 +232,9 @@ RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/so
     apt-get clean && rm -rf /var/lib/apt/lists/*  
   
 # 安装 Node.js 和 npm（通过清华大学镜像）  
-RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - && \  
-    echo "deb https://mirrors.tuna.tsinghua.edu.cn/nodesource/deb_16.x focal main" > /etc/apt/sources.list.d/nodesource.list && \  
-    echo "deb-src https://mirrors.tuna.tsinghua.edu.cn/nodesource/deb_16.x focal main" >> /etc/apt/sources.list.d/nodesource.list && \  
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg && \  
+    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://mirrors.tuna.tsinghua.edu.cn/nodesource/deb_16.x focal main" > /etc/apt/sources.list.d/nodesource.list && \  
+    echo "deb-src [signed-by=/usr/share/keyrings/nodesource.gpg] https://mirrors.tuna.tsinghua.edu.cn/nodesource/deb_16.x focal main" >> /etc/apt/sources.list.d/nodesource.list && \  
     apt-get update && \  
     apt-get install -y nodejs  
   
@@ -248,11 +250,11 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
   
 # 构建 Go 项目  
 WORKDIR /data/www/codefever-community/http-gateway  
-RUN go get -d ./... && \  
+RUN go mod tidy && \  
     go build -o main main.go  
   
 WORKDIR /data/www/codefever-community/ssh-gateway/shell  
-RUN go get -d ./... && \  
+RUN go mod tidy && \  
     go build -o main main.go  
   
 # 配置 Codefever  
