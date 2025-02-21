@@ -1,9 +1,15 @@
 name: Build ARM Docker Image
 
 on:
+  # 手动触发工作流
+  workflow_dispatch:
+
+  # 在推送到 `main` 分支时自动触发
   push:
     branches:
-      - main  # 在推送到 `main` 分支时触发
+      - main  
+
+  # 在对 `main` 分支的 PR 创建时自动触发
   pull_request:
     branches:
       - main
