@@ -86,16 +86,15 @@ LABEL maintainer="rexshi <rexshi@pgyer.com>"
 # 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
-    NODE_VERSION=16.x # 安装 Node.js 16.x LTS 版本
+    NODE_VERSION=16.20.0
 
 # 替换为国内镜像源并安装必要的软件包
 RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     sed -i 's|http://security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
-    apt-get update -y && \
-    apt-get install -y --no-install-recommends \
+    apt-get update -y && apt-get install -y --no-install-recommends \
     software-properties-common \
+    tzdata \
     curl \
-    wget \
     zip \
     unzip \
     git \
@@ -120,12 +119,17 @@ RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/so
     echo "Asia/Shanghai" > /etc/timezone && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 安装 Node.js 和 npm
-# 使用 Nodesource 官方镜像并切换到中国镜像源进行安装
-RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
-    apt-get install -y nodejs && \
-    npm config set registry https://registry.npmmirror.com && \
-    node -v && npm -v
+# 安装 Node.js 和 npm（通过清华大学镜像）
+RUN curl -fsSL https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.xz -o node.tar.xz && \
+    mkdir -p /usr/local/lib/nodejs && \
+    tar -xJf node.tar.xz -C /usr/local/lib/nodejs --strip-components=1 && \
+    rm node.tar.xz && \
+    ln -s /usr/local/lib/nodejs/bin/node /usr/local/bin/node && \
+    ln -s /usr/local/lib/nodejs/bin/npm /usr/local/bin/npm && \
+    ln -s /usr/local/lib/nodejs/bin/npx /usr/local/bin/npx
+
+# 验证 Node.js 和 npm 是否正确安装
+RUN node -v && npm -v
 
 # 拉取代码仓库
 RUN mkdir -p /data/www && \
