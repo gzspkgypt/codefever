@@ -77,79 +77,66 @@
 
 
 
-# 使用基础 PHP Nginx 镜像
-FROM webdevops/php-nginx:7.4
+# 使用基础镜像
+FROM php:7.4-fpm
+
+# 维护者信息
 LABEL maintainer="rexshi <rexshi@pgyer.com>"
 
-# 设置非交互模式
-ENV DEBIAN_FRONTEND=noninteractive
-ENV GO111MODULE=off
+# 设置环境变量
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Asia/Shanghai
 
-# 增加国内镜像源，提高软件包下载速度
+# 替换 apt 镜像为国内镜像源（阿里云）
 RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list
 
-# 更新系统并安装必要依赖
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
-        apt-transport-https \
-        ca-certificates \
-        gnupg \
-        dirmngr \
-        software-properties-common \
-        wget \
-        curl \
-        lsb-release \
-        build-essential \
-        libyaml-dev \
-        libzip-dev \
-        git \
-        golang-go \
-        zip \
-        sendmail \
-        mailutils \
-        default-mysql-client \
-        vim && \
-    apt-get autoremove -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# 安装系统依赖和必需的软件包
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    dirmngr \
+    software-properties-common \
+    wget \
+    curl \
+    lsb-release \
+    build-essential \
+    libyaml-dev \
+    libzip-dev \
+    git \
+    golang-go \
+    zip \
+    sendmail \
+    mailutils \
+    default-mysql-client \
+    vim \
+  && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 检查关键命令是否正确安装并输出版本信息
-RUN php -v && git --version && go version
-
-# 安装 PHP YAML 扩展
-RUN pecl install yaml && \
+# 安装 PHP 扩展
+RUN docker-php-ext-install zip && \
+    pecl install yaml && \
     echo "extension=yaml.so" > /usr/local/etc/php/conf.d/yaml.ini && \
     docker-php-ext-enable yaml
 
 # 安装 Node.js 和 npm
 RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
     apt-get install -y nodejs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    npm install -g npm@latest && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 启用容器内 SSH 和 Cron 服务
-RUN docker-service enable ssh && docker-service enable cron
-
-# 拉取 Codefever 仓库代码
+# 拉取 Codefever 源代码
 RUN mkdir -p /data/www && \
     cd /data/www && \
     git clone https://github.com/PGYER/codefever.git codefever-community
 
-# 配置 Nginx
-COPY ./misc/docker/vhost.conf-template /opt/docker/etc/nginx/vhost.conf
-
-# 构建 Go 项目（分步骤处理）
+# 构建 Go 项目
 RUN cd /data/www/codefever-community/http-gateway && \
     go get -d ./... && \
     go build -o main main.go && \
     cd /data/www/codefever-community/ssh-gateway/shell && \
     go get -d ./... && \
     go build -o main main.go
-
-# Worker 配置
-COPY misc/docker/supervisor-codefever-modify-authorized-keys.conf /opt/docker/etc/supervisor.d/codefever-modify-authorized-keys.conf
-COPY misc/docker/supervisor-codefever-http-gateway.conf /opt/docker/etc/supervisor.d/codefever-http-gateway.conf
 
 # 配置 Codefever
 RUN useradd -rm git && \
@@ -167,13 +154,23 @@ RUN useradd -rm git && \
     mkdir ../file-storage && \
     chown -R git:git ../file-storage && \
     chown -R git:git ../misc && \
-    chmod +x /opt/docker/etc/supervisor.d/codefever-modify-authorized-keys.conf && \
-    chmod +x /opt/docker/etc/supervisor.d/codefever-http-gateway.conf && \
     cd ../application/libraries/composerlib/ && \
     php ./composer.phar install --no-dev
 
-# 配置 Cron
-RUN docker-cronjob '* * * * *  sh /data/www/codefever-community/application/backend/codefever_schedule.sh'
+# 配置 Cron 任务
+RUN echo "* * * * *  sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \
+    chmod 0644 /etc/cron.d/codefever-cron && \
+    crontab /etc/cron.d/codefever-cron
 
-# Entrypoint脚本
-COPY misc/docker/docker-entrypoint.sh /opt/docker/provision/entrypoint.d/20-codefever.sh
+# 配置 Nginx（如果需要）
+# COPY ./misc/docker/vhost.conf-template /etc/nginx/sites-enabled/default
+
+# 配置 Entrypoint 脚本
+COPY misc/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# 暴露端口
+EXPOSE 80 22
+
+# 启动容器的默认命令
+CMD ["php-fpm"]
