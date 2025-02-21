@@ -189,28 +189,28 @@
 
 
 
-# 使用 Ubuntu 20.04 作为基础镜像  
+# Use Ubuntu 20.04 as the base image  
 FROM ubuntu:20.04  
   
-# 维护者信息  
+# Maintainer information  
 LABEL maintainer="rexshi <rexshi@pgyer.com>"  
   
-# 设置环境变量  
+# Set environment variables  
 ENV DEBIAN_FRONTEND=noninteractive \  
-    TZ=Asia/Shanghai  
+    TZ=Asia/Shanghai \  
+    GO_VERSION=1.20.5 \  
+    GOPROXY=https://goproxy.cn,direct \  
+    GO111MODULE=on  
   
-# 安装必要的软件包  
+# Install necessary packages  
 RUN apt-get update -y && apt-get install -y --no-install-recommends \  
-    software-properties-common \  
     tzdata \  
     curl \  
-    zip \  
-    unzip \  
+    wget \  
     git \  
     build-essential \  
     libyaml-dev \  
     libzip-dev \  
-    golang-go \  
     cron \  
     vim \  
     mysql-client \  
@@ -225,35 +225,49 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     php-soap \  
     sendmail \  
     gnupg \  
-    ca-certificates && \  
-    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \  
-    echo "Asia/Shanghai" > /etc/timezone && \  
+    ca-certificates \  
+    openssh-client \  
+    openssh-server \  
+    net-tools && \  
+    ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \  
+    echo "${TZ}" > /etc/timezone && \  
     apt-get clean && rm -rf /var/lib/apt/lists/*  
   
-# 安装 Node.js 和 npm（使用官方源）  
+# Install Go  
+RUN wget -q https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz && \  
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \  
+    rm go${GO_VERSION}.linux-amd64.tar.gz  
+  
+# Set Go environment variables  
+ENV PATH="/usr/local/go/bin:${PATH}"  
+  
+# Verify Go installation  
+RUN go version  
+  
+# Install Node.js and npm (using official source)  
 RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \  
     apt-get install -y nodejs  
   
-# 验证 Node.js 和 npm 是否正确安装  
+# Verify Node.js and npm installation  
 RUN node -v && npm -v  
   
-# 拉取代码仓库  
+# Pull code repository  
 RUN mkdir -p /data/www && \  
     git clone https://github.com/PGYER/codefever.git /data/www/codefever-community  
   
-# 安装 Composer  
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer  
-  
-# 构建 Go 项目  
+# Build Go project: http-gateway  
 WORKDIR /data/www/codefever-community/http-gateway  
-RUN go mod tidy && \  
-    go build -o main main.go  
+RUN go env && \  
+    go mod tidy && \  
+    go build -v -o main main.go  
   
+# Build Go project: ssh-gateway  
 WORKDIR /data/www/codefever-community/ssh-gateway/shell  
-RUN go mod tidy && \  
-    go build -o main main.go  
+RUN go env && \  
+    go mod tidy && \  
+    go build -v -o main main.go  
   
-# 配置 Codefever  
+# Configure Codefever  
 RUN useradd -rm git && \  
     mkdir -p /usr/local/php/bin && \  
     ln -s /usr/bin/php /usr/local/php/bin/php && \  
@@ -270,20 +284,26 @@ RUN useradd -rm git && \
     chown -R git:git ../file-storage && \  
     chown -R git:git ../misc  
   
-# 安装 PHP 依赖（通过 Composer）  
+# Install Composer  
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer  
+  
+# Install PHP dependencies (via Composer)  
 WORKDIR /data/www/codefever-community/application/libraries/composerlib  
 RUN composer install --no-dev --ignore-platform-reqs  
   
-# 安装和配置 Cron 任务  
+# Install and configure Cron task  
 RUN echo "* * * * * root sh /data/www/codefever-community/application/backend/codefever_schedule.sh" > /etc/cron.d/codefever-cron && \  
     chmod 0644 /etc/cron.d/codefever-cron  
   
-# 配置 Entrypoint 脚本  
+# Copy Entrypoint script  
 COPY misc/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh  
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh  
   
-# 暴露端口  
+# Expose ports  
 EXPOSE 80 22  
   
-# 设置启动脚本  
+# Set the entrypoint script  
+ENTRYPOINT ["docker-entrypoint.sh"]  
+  
+# Set default command  
 CMD ["php-fpm"]  
