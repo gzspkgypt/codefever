@@ -203,7 +203,8 @@ EXPOSE 80 22
 # 设置环境变量  
 ENV DEBIAN_FRONTEND=noninteractive \  
     TZ=Asia/Shanghai \  
-    GO111MODULE=off  
+    GO111MODULE=on \  
+    GOPROXY=https://goproxy.cn,direct  
   
 # 设置时区  
 RUN ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \  
@@ -264,6 +265,7 @@ RUN wget -q https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \  
     rm go${GO_VERSION}.linux-amd64.tar.gz  
 ENV PATH="/usr/local/go/bin:${PATH}"  
+RUN go version  
   
 # 启用 corepack  
 RUN corepack enable  
@@ -282,13 +284,11 @@ COPY misc/docker/vhost.conf-template /etc/nginx/sites-available/default
   
 # 构建 Go 项目  
 WORKDIR /data/www/codefever-community/http-gateway  
-RUN go mod init codefever-http-gateway && \  
-    go get gopkg.in/yaml.v2 && \  
+RUN go mod tidy && \  
     go build -o main main.go  
   
 WORKDIR /data/www/codefever-community/ssh-gateway/shell  
-RUN go mod init codefever-ssh-gateway && \  
-    go get gopkg.in/yaml.v2 && \  
+RUN go mod tidy && \  
     go build -o main main.go  
   
 # 复制 Supervisor 配置  
