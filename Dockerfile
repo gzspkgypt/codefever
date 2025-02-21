@@ -77,27 +77,31 @@
 
 
 
+# 使用官方 PHP Nginx 镜像作为基础镜像
 FROM webdevops/php-nginx:7.4
 LABEL maintainer="rexshi <rexshi@pgyer.com>"
 
-# 设置非交互式模式，避免构建时交互提示
+# 设置非交互模式，避免交互提示
 ENV DEBIAN_FRONTEND=noninteractive
 ENV GO111MODULE=off
 
-# 使用国内源以提高下载速度（可选，根据需要启用）
+# 替换为更可靠的国内镜像源（提高速度，解决源访问问题）
 RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list
 
-# 更新并安装必要的依赖，分步处理，减少一次性失败风险
+# 更新系统并安装所需依赖（分步骤安装，避免一次性失败）
 RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        apt-transport-https \
+        ca-certificates \
+        gnupg \
+        dirmngr \
+        software-properties-common && \
     apt-get install -y --no-install-recommends \
         apt-utils \
         wget \
         curl \
-        gnupg \
         lsb-release \
-        dirmngr \
-        software-properties-common \
         build-essential \
         libyaml-dev \
         libzip-dev \
@@ -112,21 +116,21 @@ RUN apt-get update -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 检查关键安装是否成功
-RUN php -v && go version && git --version && node -v || echo "One or more dependencies failed to install."
+# 检查关键命令是否正确安装
+RUN php -v && git --version && go version || echo "One or more dependencies failed to install."
 
 # 安装 PHP YAML 扩展
 RUN pecl install yaml && \
     echo "extension=yaml.so" > /usr/local/etc/php/conf.d/yaml.ini && \
     docker-php-ext-enable yaml
 
-# 安装 Node.js 和 npm（使用官方推荐脚本）
+# 安装 Node.js 和 npm
 RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
     apt-get install -y nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 启用容器内的 SSH 和 Cron 服务
+# 启用容器内服务：SSH 和 Cron
 RUN docker-service enable ssh && docker-service enable cron
 
 # 拉取 Codefever 仓库代码
@@ -135,18 +139,18 @@ RUN mkdir -p /data/www && \
     git clone https://github.com/PGYER/codefever.git codefever-community && \
     cd codefever-community
 
-# Nginx 配置
+# 配置 Nginx
 COPY ./misc/docker/vhost.conf-template /opt/docker/etc/nginx/vhost.conf
 
-# 构建 Go 项目，确保依赖可以正确拉取
+# 构建 Go 项目
 RUN cd /data/www/codefever-community/http-gateway && \
-    go get gopkg.in/yaml.v2 && \
+    go get -d ./... && \
     go build -o main main.go && \
     cd /data/www/codefever-community/ssh-gateway/shell && \
-    go get gopkg.in/yaml.v2 && \
+    go get -d ./... && \
     go build -o main main.go
 
-# Codefever worker 配置
+# Worker 配置
 COPY misc/docker/supervisor-codefever-modify-authorized-keys.conf /opt/docker/etc/supervisor.d/codefever-modify-authorized-keys.conf
 COPY misc/docker/supervisor-codefever-http-gateway.conf /opt/docker/etc/supervisor.d/codefever-http-gateway.conf
 
@@ -169,10 +173,10 @@ RUN useradd -rm git && \
     chmod +x /opt/docker/etc/supervisor.d/codefever-modify-authorized-keys.conf && \
     chmod +x /opt/docker/etc/supervisor.d/codefever-http-gateway.conf && \
     cd ../application/libraries/composerlib/ && \
-    php ./composer.phar install
+    php ./composer.phar install --no-dev
 
 # 配置 Cron
 RUN docker-cronjob '* * * * *  sh /data/www/codefever-community/application/backend/codefever_schedule.sh'
 
-# Entrypoint
+# Entrypoint脚本
 COPY misc/docker/docker-entrypoint.sh /opt/docker/provision/entrypoint.d/20-codefever.sh
