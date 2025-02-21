@@ -88,19 +88,17 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
     NODE_VERSION=16.20.0
 
-# 替换为国内镜像源（阿里云）以提升下载速度
+# 替换为国内镜像源（阿里云）
 RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list
 
-# 更新系统并安装基础依赖
+# 更新系统并安装必要依赖
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
     apt-transport-https \
     ca-certificates \
+    curl \
     gnupg \
     dirmngr \
-    wget \
-    curl \
-    lsb-release \
     build-essential \
     libyaml-dev \
     libzip-dev \
@@ -113,19 +111,16 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     vim \
   && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 安装 Node.js 和 npm（官方 tarball 安装方式）
-RUN ARCH=$(dpkg --print-architecture) && \
-    NODE_TARBALL="node-v$NODE_VERSION-linux-$ARCH.tar.xz" && \
-    NODE_URL="https://nodejs.org/dist/v$NODE_VERSION/$NODE_TARBALL" && \
-    curl -fsSL "$NODE_URL" -o "$NODE_TARBALL" && \
+# 安装 Node.js 和 npm (通过备用的镜像源安装)
+RUN curl -fsSL https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.xz -o node.tar.xz && \
     mkdir -p /usr/local/lib/nodejs && \
-    tar -xJf "$NODE_TARBALL" -C /usr/local/lib/nodejs --strip-components=1 && \
-    rm "$NODE_TARBALL" && \
+    tar -xJf node.tar.xz -C /usr/local/lib/nodejs --strip-components=1 && \
+    rm node.tar.xz && \
     ln -s /usr/local/lib/nodejs/bin/node /usr/local/bin/node && \
     ln -s /usr/local/lib/nodejs/bin/npm /usr/local/bin/npm && \
     ln -s /usr/local/lib/nodejs/bin/npx /usr/local/bin/npx
 
-# 验证安装是否成功
+# 验证 Node.js 和 npm 是否正确安装
 RUN node -v && npm -v
 
 # 安装 PHP 扩展
@@ -134,7 +129,7 @@ RUN docker-php-ext-install zip && \
     echo "extension=yaml.so" > /usr/local/etc/php/conf.d/yaml.ini && \
     docker-php-ext-enable yaml
 
-# 拉取 Codefever 源代码
+# 拉取代码仓库
 RUN mkdir -p /data/www && \
     cd /data/www && \
     git clone https://github.com/PGYER/codefever.git codefever-community
