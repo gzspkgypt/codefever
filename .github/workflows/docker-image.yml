@@ -39,7 +39,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          platforms: linux/amd64,linux/arm64  # 多架构支持
+          platforms: linux/arm64  # 多架构支持
           outputs: type=oci,dest=output-image.tar  # 使用 OCI 导出器保存为本地 tar 文件
 
       # 将镜像文件保存为 GitHub Actions 的工件
@@ -47,4 +47,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: docker-image
-          path: output-image.tar
+          path: codefever-image.tar
