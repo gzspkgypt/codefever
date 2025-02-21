@@ -44,7 +44,7 @@ jobs:
 
       # 将镜像文件保存为 GitHub Actions 的工件
       - name: Upload image as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # 使用 v4 版本
         with:
           name: docker-image
           path: output-image.tar
